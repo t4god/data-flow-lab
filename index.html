@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Data Flow Lab</title>
+<meta name="description" content="Интерактивная лаборатория AI Business Lab: как источник, API, сервер, база данных и дашборды обмениваются данными.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a dark "control room" diagram on top; the department screens, the database and the message log below it, on a cool light background */
+:root{
+  --bg:#EEF1F5; --surface:#FFFFFF; --surface-2:#F5F7FA; --ink:#121826; --muted:#5A6476; --line:#DCE2EA;
+  --src:#B8740F; --api:#2C68DB; --srv:#7353D9; --db:#0E8C72; --scr:#D4472E; --ok:#118A5C; --bad:#D23B37;
+  --btn:#121826; --btn-fg:#FFFFFF;
+  /* control room: one look in both themes */
+  --s-bg:#0B111C; --s-panel:#121A29; --s-line:#223049; --s-ink:#E7EDF6; --s-muted:#8A99B1;
+  --k-src:#F2A93B; --k-api:#5B9CFF; --k-srv:#A98BFF; --k-db:#2CC5A0; --k-scr:#FF7A6B; --k-bad:#FF5A55; --k-ok:#3DD68C; --k-sys:#C9D3E3;
+  --code-bg:#0F1522; --code-ink:#DCE4F0;
+  --f-display:'Unbounded','Manrope',system-ui,sans-serif;
+  --f-body:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0A0E15; --surface:#121925; --surface-2:#0F151F; --ink:#E8EDF5; --muted:#93A0B5; --line:#232D3D;
+  --src:#F2A93B; --api:#6AA6FF; --srv:#B29BFF; --db:#35CFA8; --scr:#FF8573; --ok:#3CCB8E; --bad:#FF6B66;
+  --btn:#E8EDF5; --btn-fg:#0A0E15; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0A0E15; --surface:#121925; --surface-2:#0F151F; --ink:#E8EDF5; --muted:#93A0B5; --line:#232D3D;
+  --src:#F2A93B; --api:#6AA6FF; --srv:#B29BFF; --db:#35CFA8; --scr:#FF8573; --ok:#3CCB8E; --bad:#FF6B66;
+  --btn:#E8EDF5; --btn-fg:#0A0E15; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit}
+.wrap{max-width:1320px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 56px;display:grid;gap:30px}
+h1,h2,h3{text-wrap:balance;margin:0}
+h1{font-family:var(--f-display);font-weight:600;font-size:clamp(26px,3.3vw,44px);line-height:1.08;letter-spacing:-.01em}
+h2{font-family:var(--f-display);font-weight:600;font-size:clamp(20px,2.1vw,28px);line-height:1.15}
+h3{font-size:18px;font-weight:800;line-height:1.25}
+p{margin:0}
+.eyebrow{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.lead{color:var(--muted);font-size:16.5px;max-width:62ch}
+.mono{font-family:var(--f-mono)}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:12.5px}
+.brand .mark{font-family:var(--f-display);font-size:15px;letter-spacing:0;background:var(--ink);color:var(--bg);border-radius:9px;padding:6px 8px;line-height:1}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;border-radius:999px;padding:8px 16px;font-weight:700;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button:focus-visible,.btn:focus-visible,.node:focus-visible,.steps button:focus-visible,.msg:focus-visible,.tab:focus-visible,.quiz button:focus-visible{outline:2px solid var(--api);outline-offset:2px}
+
+.intro{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px;align-items:end}
+.intro .eyebrow{margin-bottom:10px}
+@media (max-width:820px){.intro{grid-template-columns:1fr}}
+
+/* buttons */
+.btn{font-weight:700;border-radius:12px;padding:10px 16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s,background .2s,opacity .2s;line-height:1.2;text-align:center}
+.btn:hover:not(:disabled){transform:translateY(-1px)}
+.btn.primary{background:var(--btn);color:var(--btn-fg);border-color:transparent}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn.cue{animation:cue 1.7s ease-out infinite}
+@keyframes cue{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--api) 60%,transparent)}70%{box-shadow:0 0 0 11px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+/* control room */
+.stagebox{background:var(--s-bg);color:var(--s-ink);border:1px solid var(--s-line);border-radius:22px;overflow:hidden;box-shadow:0 34px 70px -38px rgba(8,18,40,.55)}
+.stagebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--s-line)}
+.steps{list-style:none;margin:0;padding:2px;display:flex;gap:6px;overflow-x:auto;flex:1 1 100%;min-width:0;scrollbar-width:thin}
+.ctrl{margin-left:auto}
+@media (min-width:1500px){.steps{flex-basis:auto}}
+.steps button{display:flex;align-items:center;gap:8px;white-space:nowrap;background:transparent;border:1px solid var(--s-line);color:var(--s-muted);border-radius:999px;padding:5px 13px 5px 5px;font-size:13px;font-weight:600;cursor:pointer;transition:all .25s}
+.steps .num{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--s-line);font-size:11.5px;font-weight:800;font-family:var(--f-mono)}
+.steps .done button{color:var(--s-ink)}
+.steps .done .num{background:var(--k-ok);border-color:var(--k-ok);color:#06210F}
+.steps .cur button{border-color:#F2F5FA;color:#fff;box-shadow:0 0 0 3px rgba(242,245,250,.12)}
+.steps .cur .num{background:#F2F5FA;color:#0B111C;border-color:#F2F5FA}
+.steps .skip button{opacity:.45;text-decoration:line-through}
+.steps button:disabled{cursor:default}
+.ctrl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sbtn{background:#172238;color:var(--s-ink);border:1px solid var(--s-line);border-radius:10px;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.sbtn:hover{background:#1D2A44}
+.sbtn:focus-visible,.sselect:focus-visible{outline:2px solid var(--k-api);outline-offset:2px}
+.sselect{background:#172238;color:var(--s-ink);border:1px solid var(--s-line);border-radius:10px;padding:7px 10px;font:inherit;font-size:13px;font-weight:700;color-scheme:dark}
+.stoggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--s-ink);cursor:pointer;padding:4px 6px}
+.stoggle input{appearance:none;width:34px;height:20px;border-radius:999px;background:#26344D;position:relative;cursor:pointer;margin:0;transition:background .2s;flex:none}
+.stoggle input::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#C9D3E3;transition:transform .2s}
+.stoggle input:checked{background:var(--k-api)}
+.stoggle input:checked::after{transform:translateX(14px);background:#fff}
+.stoggle input:focus-visible{outline:2px solid var(--k-api);outline-offset:2px}
+
+.stage{position:relative;aspect-ratio:1000/420;container-type:inline-size;--nw:17%;
+  background-image:radial-gradient(rgba(140,160,190,.13) 1px,transparent 1.3px),radial-gradient(ellipse at 55% 45%,#14213A 0%,#0B111C 68%);
+  background-size:22px 22px,100% 100%}
+.stage.v{aspect-ratio:400/480;--nw:30%}
+#wires{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.wire{fill:none;stroke:#22304A;stroke-width:2;vector-effect:non-scaling-stroke;transition:opacity .3s}
+.wire.live{stroke:var(--wc);stroke-width:2.6;stroke-dasharray:7 7;animation:dash .55s linear infinite;filter:drop-shadow(0 0 5px var(--wc))}
+.wire.off{stroke-dasharray:3 7;opacity:.4}
+@keyframes dash{to{stroke-dashoffset:-14}}
+
+.node{position:absolute;left:calc(var(--x) * 1%);top:calc(var(--y) * 1%);width:var(--nw);transform:translate(-50%,-50%);z-index:3;
+  background:linear-gradient(180deg,#16223A,#0F1828);border:1px solid #27354F;border-radius:14px;padding:clamp(8px,1.1cqw,14px);
+  color:var(--s-ink);text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;transition:box-shadow .35s,border-color .35s,opacity .35s}
+.node:hover{border-color:#3A4B6C}
+.n-src{--kc:var(--k-src)}.n-api{--kc:var(--k-api)}.n-srv{--kc:var(--k-srv)}.n-db{--kc:var(--k-db)}.n-scr{--kc:var(--k-scr)}
+.nh{display:flex;align-items:center;gap:8px}
+.ic{width:clamp(22px,2.5cqw,32px);aspect-ratio:1;border-radius:9px;display:grid;place-items:center;background:color-mix(in srgb,var(--kc) 18%,transparent);color:var(--kc);flex:none}
+.ic svg{width:62%;height:62%;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.nl{font-size:clamp(9px,.85cqw,11px);letter-spacing:.12em;text-transform:uppercase;color:var(--kc);font-weight:800;line-height:1.2}
+.nn{font-weight:800;font-size:clamp(11.5px,1.35cqw,17px);line-height:1.2;margin-top:5px}
+.ns{font-size:clamp(10px,1cqw,12.5px);color:var(--s-muted);line-height:1.3}
+.nst{margin-top:6px;font-size:clamp(10px,.95cqw,12px);font-family:var(--f-mono);color:var(--s-muted);line-height:1.35}
+@container (max-width:980px){.ns{display:none}}
+.node.hit{border-color:var(--kc);box-shadow:0 0 0 1px var(--kc),0 0 34px -4px var(--kc)}
+.node.badhit{border-color:var(--k-bad);box-shadow:0 0 0 1px var(--k-bad),0 0 34px -4px var(--k-bad)}
+.node.dim{opacity:.38;border-style:dashed}
+.node.down{border-color:color-mix(in srgb,var(--k-bad) 70%,transparent)}
+.node.down .nst{color:var(--k-bad)}
+.spill{display:inline-block;padding:2px 8px;border-radius:999px;font-family:var(--f-body);font-weight:700;font-size:clamp(10px,1cqw,12.5px);line-height:1.4;white-space:nowrap}
+.k-pending{background:color-mix(in srgb,var(--k-src) 20%,transparent);color:var(--k-src)}
+.k-progress{background:color-mix(in srgb,var(--k-api) 22%,transparent);color:#9CC2FF}
+.k-ready{background:color-mix(in srgb,var(--k-ok) 20%,transparent);color:var(--k-ok)}
+.k-none{background:rgba(255,255,255,.06);color:var(--s-muted)}
+.copytag{display:inline-block;margin-left:4px;font-size:clamp(9px,.85cqw,11px);color:var(--k-src)}
+
+.packet{position:absolute;left:0;top:0;transform:translate(-50%,-50%);z-index:5;display:flex;align-items:center;gap:6px;padding:4px 11px 4px 6px;border-radius:999px;
+  background:var(--pc);color:#0B111C;font-weight:800;font-size:clamp(10px,1.05cqw,13px);white-space:nowrap;pointer-events:none;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 28%,transparent),0 0 26px var(--pc);transition:opacity .35s}
+.packet i{width:8px;height:8px;border-radius:50%;background:#0B111C;opacity:.5}
+.t-src{--pc:var(--k-src)}.t-api{--pc:var(--k-api)}.t-srv{--pc:var(--k-srv)}.t-db{--pc:var(--k-db)}.t-scr{--pc:var(--k-scr)}.t-bad{--pc:var(--k-bad)}
+.packet.gone{opacity:0}
+.packet.dead{--pc:var(--k-bad);animation:shake .45s}
+@keyframes shake{0%,100%{margin-left:0}20%{margin-left:-6px}40%{margin-left:6px}60%{margin-left:-4px}80%{margin-left:4px}}
+
+.caption{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 16px;border-top:1px solid var(--s-line);background:var(--s-panel)}
+.who{--wc:var(--k-sys);flex:none;font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:6px 10px;border-radius:8px;color:var(--wc);background:color-mix(in srgb,var(--wc) 16%,transparent);min-width:96px;text-align:center}
+#say{flex:1 1 360px;font-size:clamp(15px,1.3vw,19px);line-height:1.45;min-height:2.9em;display:flex;align-items:center}
+#say.swap{animation:fadein .35s ease}
+@keyframes fadein{from{opacity:.2;transform:translateY(4px)}to{opacity:1;transform:none}}
+.capbtns{display:flex;gap:8px;flex-wrap:wrap}
+.go{background:#F2F5FA;color:#0B111C;border:0;border-radius:12px;padding:11px 18px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.go:disabled{opacity:.4;cursor:not-allowed}
+.go:focus-visible{outline:2px solid var(--k-api);outline-offset:2px}
+.go.next{background:var(--k-api);color:#06132B;animation:cue 1.7s ease-out infinite}
+kbd{font-family:var(--f-mono);font-size:11px;border:1px solid currentColor;border-radius:5px;padding:0 5px;opacity:.6}
+
+/* sections */
+.sh{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.sh .eyebrow{margin-bottom:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+
+.work{display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1020px){.work{grid-template-columns:1fr 1fr}.work .srccard{grid-column:1/-1}}
+@media (max-width:640px){.work{grid-template-columns:1fr}}
+.dhead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.dhead small{display:block;font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.dhead .role{color:var(--muted);font-size:13.5px;font-weight:500;margin-top:2px}
+.avatar{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:800;flex:none;color:var(--scr);background:color-mix(in srgb,var(--scr) 13%,transparent)}
+.avatar.src{color:var(--src);background:color-mix(in srgb,var(--src) 14%,transparent)}
+.avatar svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.q{font-size:14.5px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px dashed var(--line)}
+.q b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.rec{border:1px solid var(--line);border-radius:14px;padding:13px;display:grid;gap:10px;background:var(--surface)}
+.rec.flash{animation:flash 1.6s ease}
+@keyframes flash{0%{background:color-mix(in srgb,var(--db) 22%,var(--surface));border-color:var(--db)}100%{background:var(--surface)}}
+.rec-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.rec-top b{font-size:16px}
+.rec-top small{display:block;color:var(--muted);font-size:13px}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;border-top:1px solid var(--line);padding-top:9px}
+.kv span{color:var(--muted)}
+.kv b.ok{color:var(--ok)}
+.meta{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:800;font-size:12.5px;white-space:nowrap}
+.p-pending{background:color-mix(in srgb,var(--src) 15%,transparent);color:var(--src)}
+.p-progress{background:color-mix(in srgb,var(--api) 14%,transparent);color:var(--api)}
+.p-ready{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.empty{border:1px dashed var(--line);border-radius:14px;padding:16px;display:grid;gap:4px;color:var(--muted);font-size:14px}
+.empty b{color:var(--ink)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts .btn{flex:1 1 150px}
+.note{font-size:13.5px;border-radius:10px;padding:8px 11px;line-height:1.4}
+.note.ok{background:color-mix(in srgb,var(--ok) 11%,transparent);color:var(--ok)}
+.note.bad{background:color-mix(in srgb,var(--bad) 11%,transparent);color:var(--bad)}
+.warnline{font-size:13px;border-radius:10px;padding:8px 11px;background:color-mix(in srgb,var(--src) 13%,transparent);color:var(--src);font-weight:600}
+.may{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.diverge{grid-column:1/-1;border-radius:14px;padding:12px 16px;font-weight:700;background:color-mix(in srgb,var(--bad) 11%,var(--surface));color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 35%,transparent)}
+.srcbody{display:grid;gap:8px;font-size:14px}
+.srcbody .ev{font-weight:700;font-size:15.5px}
+.srcstate{font-family:var(--f-mono);font-size:12px;color:var(--ok)}
+.srcstate.down{color:var(--bad)}
+
+.hood{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){.hood{grid-template-columns:1fr}}
+.panelhead{display:flex;align-items:center;gap:10px}
+.dot{width:12px;height:12px;border-radius:4px;flex:none}
+.sub{color:var(--muted);font-size:14px}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;position:relative}
+table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:800;padding:10px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 12px;white-space:nowrap}
+td.mono{font-family:var(--f-mono);font-size:12.5px}
+tr.flash td{animation:flashrow 1.6s ease}
+@keyframes flashrow{0%{background:color-mix(in srgb,var(--db) 22%,transparent)}100%{background:transparent}}
+.dboff{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:12px;background:color-mix(in srgb,var(--surface) 88%,transparent);font-weight:700;color:var(--bad);font-size:14px}
+.hist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hist li{display:flex;gap:10px;align-items:baseline;font-size:13.5px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.hist li:last-child{border-bottom:0}
+.vtag{font-family:var(--f-mono);font-size:11.5px;font-weight:500;padding:1px 7px;border-radius:6px;background:color-mix(in srgb,var(--db) 14%,transparent);color:var(--db);flex:none}
+.hist .who2{font-weight:700}
+.hist time{margin-left:auto;font-family:var(--f-mono);font-size:11.5px;color:var(--muted);flex:none}
+.hist .txt{min-width:0}
+
+.msgs{list-style:none;margin:0;padding:0;display:grid;gap:4px;max-height:230px;overflow:auto}
+.msg{width:100%;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;text-align:left;border:1px solid transparent;background:transparent;border-radius:10px;padding:7px 9px;cursor:pointer;font-size:13.5px}
+.msg:hover{background:var(--surface-2)}
+.msg[aria-pressed="true"]{background:var(--surface-2);border-color:var(--line)}
+.msg time{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+.msg .mt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg .mt b{font-weight:700}
+.msg .mt span{color:var(--muted)}
+.code{font-family:var(--f-mono);font-size:11.5px;font-weight:500;padding:2px 7px;border-radius:6px}
+.code.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.code.bad{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
+.tabs{display:inline-flex;gap:2px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+.tab{border:0;background:transparent;border-radius:8px;padding:6px 12px;font-weight:700;font-size:13px;cursor:pointer;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.detail{display:grid;gap:10px}
+.plain{font-size:15px;line-height:1.55;padding:12px 14px;border-radius:12px;background:var(--surface-2)}
+.plain .route{display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.codegrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:520px){.codegrid{grid-template-columns:1fr}}
+.codebox{min-width:0}
+.codebox b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:12px;padding:12px 14px;font-family:var(--f-mono);font-size:12.5px;line-height:1.55;overflow-x:auto;white-space:pre}
+.hm{color:#FF9E8A;font-weight:600}.hk{color:#8FB8FF}.hs{color:#8EE3C4}.hn{color:#F2C46B}.hc.ok{color:#3DD68C;font-weight:600}.hc.bad{color:#FF6B66;font-weight:600}.hh{color:#8A99B1}
+
+.exps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+@media (max-width:1100px){.exps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:600px){.exps{grid-template-columns:1fr}}
+.exp .tag{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.exp p{color:var(--muted);font-size:14px}
+.exp .res{color:var(--ink);font-size:14px;border-left:3px solid var(--api);padding:2px 0 2px 10px;background:none}
+.exp .spacer{flex:1}
+.ltoggle{display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;font-size:14px}
+.ltoggle input{appearance:none;width:40px;height:23px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;margin:0;transition:background .2s;flex:none}
+.ltoggle input::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s}
+.ltoggle input:checked{background:var(--bad)}
+.ltoggle input:checked::after{transform:translateX(17px)}
+.ltoggle input:focus-visible{outline:2px solid var(--api);outline-offset:2px}
+
+.recap{display:grid;gap:18px}
+.thesis{font-family:var(--f-display);font-weight:600;font-size:clamp(22px,2.8vw,38px);line-height:1.2}
+.thesis span{display:inline-block;margin-right:.35em}
+.gloss{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+@media (max-width:1100px){.gloss{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.gloss{grid-template-columns:1fr}}
+.gloss .card{gap:8px;padding:16px}
+.gloss h3{display:flex;align-items:center;gap:8px;font-size:16px}
+.gloss p{font-size:14px}
+.gloss .ex{font-size:13px;color:var(--muted)}
+.quiz{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:18px;align-items:center}
+@media (max-width:820px){.quiz{grid-template-columns:1fr}}
+.qopts{display:grid;gap:8px}
+.qopts button{text-align:left;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer}
+.qopts button.right{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok)}
+.qopts button.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,transparent);color:var(--bad)}
+#quizres{font-size:14.5px;color:var(--muted)}
+footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:18px}
+footer b{color:var(--ink)}
+
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand"><span class="mark">BB</span>AI Business Lab</div>
+  <nav class="seg" id="scen" aria-label="Сценарий"></nav>
+</header>
+
+<section class="intro">
+  <div>
+    <p class="eyebrow">Интерактивная лаборатория</p>
+    <h1>Как данные проходят через компанию</h1>
+  </div>
+  <p class="lead">Факт появляется в одной системе и превращается в решения двух отделов. Нажимайте кнопки и смотрите, кто, кому и что передаёт.</p>
+</section>
+
+<section class="stagebox" id="stagebox" aria-label="Схема обмена данными">
+  <div class="stagebar">
+    <ol class="steps" id="steps" aria-label="Шаги сценария"></ol>
+    <div class="ctrl">
+      <select class="sselect" id="tempo" aria-label="Темп анимации">
+        <option value="slow">Темп: медленно</option>
+        <option value="normal" selected>Темп: обычно</option>
+        <option value="fast">Темп: быстро</option>
+      </select>
+      <label class="stoggle" title="Пауза после каждого перехода. Дальше — пробел."><input type="checkbox" id="stepMode"> Пошагово</label>
+      <button class="sbtn" id="reset" type="button">↺ Сначала</button>
+      <button class="sbtn" id="fs" type="button">⛶ Экран</button>
+    </div>
+  </div>
+  <div class="stage" id="stage"></div>
+  <div class="caption">
+    <span class="who" id="who">Старт</span>
+    <p id="say" aria-live="polite"></p>
+    <div class="capbtns">
+      <button class="go next" id="nextHop" type="button" hidden>Дальше <kbd>␣</kbd></button>
+      <button class="go" id="nextStep" type="button"></button>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-work">
+  <div class="sh">
+    <div><p class="eyebrow">Рабочие места</p><h2 id="h-work">Экраны отделов</h2></div>
+    <p class="sub">Каждая кнопка отправляет запрос — его путь виден на схеме выше.</p>
+  </div>
+  <div class="work">
+    <article class="card srccard">
+      <div class="dhead">
+        <div><small>Источник данных</small><h3 id="srcName"></h3><div class="role" id="srcKind"></div></div>
+        <span class="avatar src"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg></span>
+      </div>
+      <div class="srcbody">
+        <span class="ev" id="srcEvent"></span>
+        <span class="sub" id="srcDetail"></span>
+        <span class="srcstate" id="srcState"></span>
+      </div>
+      <div class="acts"><button class="btn primary" id="btnImport" type="button">Отправить событие →</button></div>
+      <p class="may">Учебный сигнал. Реальная система не подключена.</p>
+    </article>
+    <article class="card" id="dash-a">
+      <div class="dhead">
+        <div><small>Дашборд отдела</small><h3 id="aName"></h3><div class="role" id="aRole"></div></div>
+        <span class="avatar" id="aAv"></span>
+      </div>
+      <div class="q"><b>Вопрос отдела</b><span id="aQ"></span></div>
+      <div id="aBody"></div>
+      <div id="aNote"></div>
+      <div class="acts">
+        <button class="btn primary" id="btnStart" type="button"></button>
+        <button class="btn" id="btnDone" type="button"></button>
+      </div>
+      <p class="may" id="aMay"></p>
+    </article>
+    <article class="card" id="dash-b">
+      <div class="dhead">
+        <div><small>Дашборд отдела</small><h3 id="bName"></h3><div class="role" id="bRole"></div></div>
+        <span class="avatar" id="bAv"></span>
+      </div>
+      <div class="q"><b>Вопрос отдела</b><span id="bQ"></span></div>
+      <div id="bBody"></div>
+      <div id="bNote"></div>
+      <div class="acts"><button class="btn primary" id="btnAssign" type="button"></button></div>
+      <p class="may" id="bMay"></p>
+    </article>
+    <div class="diverge" id="diverge" hidden></div>
+  </div>
+</section>
+
+<section aria-labelledby="h-hood">
+  <div class="sh">
+    <div><p class="eyebrow">Под капотом</p><h2 id="h-hood">Что хранится и что передаётся</h2></div>
+  </div>
+  <div class="hood">
+    <article class="card">
+      <div class="panelhead"><span class="dot" style="background:var(--db)"></span><h3>База данных · общая память</h3></div>
+      <p class="sub">Так запись выглядит в базе. Экраны показывают её каждый по-своему, но ID и статус у всех одни.</p>
+      <div class="tblwrap" id="dbTable"></div>
+      <h3 style="font-size:15px">История изменений</h3>
+      <ul class="hist" id="hist"></ul>
+    </article>
+    <article class="card">
+      <div class="panelhead"><span class="dot" style="background:var(--api)"></span><h3>Сообщения через API</h3></div>
+      <p class="sub">Каждый обмен данными. Выберите сообщение и посмотрите на него двумя способами.</p>
+      <ul class="msgs" id="msgs"></ul>
+      <div class="detail" id="detail"></div>
+    </article>
+  </div>
+</section>
+
+<section aria-labelledby="h-exp" id="exp">
+  <div class="sh">
+    <div><p class="eyebrow">Эксперименты</p><h2 id="h-exp">Что если…</h2></div>
+    <p class="sub">Попробуйте сломать систему и посмотрите, как она себя поведёт.</p>
+  </div>
+  <div class="exps">
+    <article class="card exp">
+      <span class="tag">Повтор</span>
+      <h3>Событие пришло дважды</h3>
+      <p>Источник по ошибке прислал то же событие ещё раз. Появится ли вторая запись?</p>
+      <div class="spacer"></div>
+      <button class="btn" id="expDup" type="button">Отправить повторно</button>
+      <p class="res" id="resDup" hidden></p>
+    </article>
+    <article class="card exp">
+      <span class="tag">Сбой</span>
+      <h3>Источник недоступен</h3>
+      <p>Пропала связь или сервис на обслуживании. Что увидят отделы?</p>
+      <div class="spacer"></div>
+      <label class="ltoggle"><input type="checkbox" id="expOff"> Отключить источник</label>
+      <p class="res" id="resOff" hidden></p>
+    </article>
+    <article class="card exp">
+      <span class="tag">Права</span>
+      <h3 id="forbidTitle"></h3>
+      <p id="forbidText"></p>
+      <div class="spacer"></div>
+      <button class="btn" id="expForbid" type="button">Попробовать</button>
+      <p class="res" id="resForbid" hidden></p>
+    </article>
+    <article class="card exp">
+      <span class="tag">Без общей памяти</span>
+      <h3>Работа без общей базы</h3>
+      <p>Каждый экран хранит свою копию данных. Сценарий начнётся заново — пройдите шаги ещё раз.</p>
+      <div class="spacer"></div>
+      <label class="ltoggle"><input type="checkbox" id="expNoDb"> Отключить общую базу</label>
+      <p class="res" id="resNoDb" hidden></p>
+    </article>
+  </div>
+</section>
+
+<section class="recap" aria-labelledby="h-recap">
+  <div><p class="eyebrow">Коротко о главном</p>
+    <h2 id="h-recap" class="thesis"><span>API — дорога.</span> <span>База — память.</span> <span>Сервер — правила.</span> <span>Экран — рабочее место.</span></h2>
+  </div>
+  <div class="gloss" id="gloss"></div>
+  <article class="card quiz">
+    <div><p class="eyebrow">Проверьте себя</p><h3 style="font-size:20px;margin-top:6px">Где нужно проверять, имеет ли сотрудник право изменить статус?</h3></div>
+    <div class="qopts" id="quiz">
+      <button type="button" data-a="0">Спрятать кнопку на экране</button>
+      <button type="button" data-a="1">Проверять каждый запрос на сервере</button>
+      <button type="button" data-a="0">Доверять названию отдела, которое прислал экран</button>
+      <p id="quizres">Выберите ответ.</p>
+    </div>
+  </article>
+</section>
+
+<footer>
+  <span><b>AI Business Lab · Business Booster</b></span>
+  <span>Учебная модель. Все данные вымышлены. DataTrack, Octorate и QuickBooks упомянуты как примеры: реальные сервисы не подключены, всё работает в вашем браузере.</span>
+</footer>
+</div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const J=o=>JSON.stringify(o,null,2);
+const now=()=>new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+const SC={
+  fleet:{tab:'Транспорт',source:'DataTrack',kind:'Телеметрия автопарка',obj:'Грузовик 104',id:'TRK-104',path:'/api/trucks/TRK-104',evCode:'brake_check_required',
+    event:'Грузовику 104 нужна проверка тормозов',detail:'Датчик: износ тормозных колодок',
+    a:{name:'Maintenance',role:'Сервисная служба',av:'M',q:'Какую машину проверить и когда её можно вернуть в работу?',may:'Права: меняет статус технической готовности.'},
+    b:{name:'Dispatch',role:'Диспетчерская',av:'D',q:'Можно ли поставить эту машину на следующий рейс?',may:'Права: назначает рейсы. Статус ремонта не меняет.'},
+    st:{pending:'Нужна проверка',progress:'В ремонте',ready:'Исправен'},
+    act:{start:'Начать ремонт',done:'Завершить ремонт',assign:'Назначить на рейс'},
+    slot:'Рейс ATL → MIA',slotOff:'не назначен',slotOn:'назначен',
+    rule:'назначать на рейс можно только исправную машину',
+    forbid:'Dispatch назначает рейсы, но статус ремонта меняет только Maintenance',
+    success:'Рейс назначен. Dispatch принял решение по подтверждённому статусу от Maintenance — без звонков и пересылки таблиц.'},
+  stay:{tab:'Гостиница',source:'Octorate',kind:'Система бронирований',obj:'Апартамент 204',id:'BKG-204',path:'/api/bookings/BKG-204',evCode:'booking_created',
+    event:'Новая бронь: сегодня заезд в апартамент 204',detail:'Заезд сегодня в 15:00 · 2 гостя',
+    a:{name:'Housekeeping',role:'Служба уборки',av:'H',q:'Какой номер подготовить к ближайшему заезду?',may:'Права: меняет статус готовности номера.'},
+    b:{name:'Reservations',role:'Отдел бронирования',av:'R',q:'Можно ли подтвердить гостю, что номер готов?',may:'Права: общается с гостем. Статус уборки не меняет.'},
+    st:{pending:'Нужна уборка',progress:'Уборка идёт',ready:'Номер готов'},
+    act:{start:'Начать уборку',done:'Завершить уборку',assign:'Подтвердить гостю'},
+    slot:'Подтверждение гостю',slotOff:'не отправлено',slotOn:'отправлено',
+    rule:'подтверждать гостю можно только подготовленный номер',
+    forbid:'Reservations общается с гостем, но статус уборки меняет только Housekeeping',
+    success:'Готовность подтверждена. Reservations опирается на статус от Housekeeping. Реальному гостю ничего не отправлено.'},
+  finance:{tab:'Финансы',source:'QuickBooks',kind:'Бухгалтерия',obj:'Счёт INV-301',id:'INV-301',path:'/api/invoices/INV-301',evCode:'payment_received',
+    event:'По счёту INV-301 поступил платёж',detail:'Заказ ORD-301 · 1 200 USD',
+    a:{name:'Finance',role:'Финансовый отдел',av:'F',q:'Подтверждена ли оплата по этому счёту?',may:'Права: сверяет и подтверждает оплату.'},
+    b:{name:'Operations',role:'Операционный отдел',av:'O',q:'Можно ли запускать заказ в работу?',may:'Права: запускает заказы. Оплату не подтверждает.'},
+    st:{pending:'Ожидает сверки',progress:'На сверке',ready:'Оплата подтверждена'},
+    act:{start:'Начать сверку',done:'Подтвердить оплату',assign:'Запустить заказ'},
+    slot:'Заказ ORD-301',slotOff:'не запущен',slotOn:'запущен в работу',
+    rule:'запускать заказ можно только после подтверждения оплаты',
+    forbid:'Operations видит оплату, но подтверждает её только Finance',
+    success:'Заказ запущен. Operations опирается на подтверждение от Finance. Деньги и реальные счета не затрагиваются.'}
+};
+const CODE={pending:'pending',progress:'in_progress',ready:'ready'};
+const ICON={
+  src:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>',
+  api:'<svg viewBox="0 0 24 24"><path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"/></svg>',
+  srv:'<svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>',
+  db:'<svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg>',
+  scr:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>'
+};
+const LAYOUT={
+  h:{w:1000,h:420,pos:{src:[430,72],a:[132,140],b:[132,318],api:[430,238],srv:[668,238],db:[880,238]}},
+  v:{w:400,h:480,pos:{src:[200,58],a:[70,172],b:[70,332],api:[200,252],srv:[330,252],db:[330,412]}}
+};
+const WIRES=[['src','api'],['a','api'],['b','api'],['api','srv'],['srv','db']];
+const NODES=['src','api','srv','db','a','b'];
+const PACE={slow:{t:1500,w:2700},normal:{t:950,w:1700},fast:{t:480,w:650}};
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ABORT=Symbol('abort');
+
+let key='fleet', tempo='normal', stepMode=false, run=0, waiting=null, LAY=LAYOUT.h, vert=false, msgSeq=0;
+let S=fresh();
+const c=()=>SC[key];
+const P=()=>RM?{t:160,w:PACE[tempo].w}:PACE[tempo];
+
+function fresh(){return{rec:null,hist:[],views:{a:null,b:null},msgs:[],sel:null,tab:'plain',done:{},offline:false,noDb:false,stale:false,busy:false,notes:{a:null,b:null},exp:{},verdict:null,apiCount:0,fl:{}}}
+
+/* ---------- stage ---------- */
+function buildStage(){
+  const st=$('#stage');
+  st.innerHTML='<svg id="wires" aria-hidden="true"></svg>';
+  for(const n of NODES){
+    const kind=(n==='a'||n==='b')?'scr':n;
+    const el=document.createElement('button');
+    el.type='button';el.className='node n-'+kind;el.id='node-'+n;
+    el.innerHTML=`<span class="nh"><span class="ic">${ICON[kind]}</span><span class="nl"></span></span><span class="nn"></span><span class="ns"></span><span class="nst"></span>`;
+    el.addEventListener('click',()=>explain(n));
+    st.append(el);
+  }
+  layout();
+}
+function wd(p,q){
+  const [x1,y1]=p,[x2,y2]=q,dx=x2-x1,dy=y2-y1;
+  return Math.abs(dx)>=Math.abs(dy)
+    ?`M${x1} ${y1} C${x1+dx/2} ${y1} ${x2-dx/2} ${y2} ${x2} ${y2}`
+    :`M${x1} ${y1} C${x1} ${y1+dy/2} ${x2} ${y2-dy/2} ${x2} ${y2}`;
+}
+function layout(){
+  const box=$('#stagebox');
+  vert=box.clientWidth<700;
+  const st=$('#stage');
+  st.classList.toggle('v',vert);
+  LAY=vert?LAYOUT.v:LAYOUT.h;
+  const svg=$('#wires');
+  svg.setAttribute('viewBox',`0 0 ${LAY.w} ${LAY.h}`);
+  svg.setAttribute('preserveAspectRatio','none');
+  svg.innerHTML=WIRES.map(([p,q])=>`<path class="wire" id="w-${p}-${q}" d="${wd(LAY.pos[p],LAY.pos[q])}"/>`).join('');
+  for(const n of NODES){const el=$('#node-'+n);const [x,y]=LAY.pos[n];el.style.setProperty('--x',(x/LAY.w*100).toFixed(3));el.style.setProperty('--y',(y/LAY.h*100).toFixed(3))}
+  renderStage();
+}
+function wireFor(a,b){
+  for(const [p,q] of WIRES){
+    if(p===a&&q===b) return {el:$(`#w-${p}-${q}`),rev:false};
+    if(p===b&&q===a) return {el:$(`#w-${p}-${q}`),rev:true};
+  }
+  throw new Error('no wire '+a+'-'+b);
+}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function travel(a,b,label,tone,opt={}){
+  const w=wireFor(a,b);
+  const pk=document.createElement('div');
+  pk.className='packet t-'+tone;
+  pk.innerHTML='<i></i><span></span>';
+  pk.querySelector('span').textContent=label;
+  $('#stage').append(pk);
+  const toneVar={src:'--k-src',api:'--k-api',srv:'--k-srv',db:'--k-db',scr:'--k-scr',bad:'--k-bad'}[tone];
+  w.el.style.setProperty('--wc',`var(${toneVar})`);
+  w.el.classList.add('live');
+  hit(a);
+  const dur=P().t*(opt.fail?.6:1), end=opt.fail?.5:1;
+  return new Promise(res=>{
+    const t0=performance.now();let fin=false;
+    const step=nowT=>{
+      if(fin)return;
+      if(!pk.isConnected){fin=true;w.el.classList.remove('live');res();return}
+      const p=Math.min(1,(nowT-t0)/dur);
+      const path=wireFor(a,b).el||w.el;
+      const L=path.getTotalLength();
+      const e=ease(p)*end;
+      const pt=path.getPointAtLength((w.rev?1-e:e)*L);
+      pk.style.left=(pt.x/LAY.w*100)+'%';
+      pk.style.top=(pt.y/LAY.h*100)+'%';
+      if(p<1){requestAnimationFrame(step);return}
+      fin=true;
+      path.classList.remove('live');
+      if(opt.fail){pk.classList.add('dead');pk.querySelector('span').textContent='Нет связи';setTimeout(()=>pk.classList.add('gone'),900);setTimeout(()=>pk.remove(),1300)}
+      else{pk.classList.add('gone');setTimeout(()=>pk.remove(),380);tone==='bad'?bad(b):hit(b)}
+      res();
+    };
+    requestAnimationFrame(step);
+    setTimeout(()=>{if(!fin)step(t0+dur)},dur+80); /* finishes even in a background tab */
+  });
+}
+function hit(n){const el=$('#node-'+n);if(!el)return;el.classList.remove('badhit');el.classList.add('hit');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('hit'),900)}
+function bad(n){const el=$('#node-'+n);if(!el)return;el.classList.remove('hit');el.classList.add('badhit');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('badhit'),1600)}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function gate(ms){
+  if(stepMode){$('#nextHop').hidden=false;$('#nextStep').hidden=true;return new Promise(r=>{waiting=r})}
+  return sleep(ms??P().w);
+}
+function advance(){if(!waiting)return;const r=waiting;waiting=null;$('#nextHop').hidden=true;r()}
+function mkF(t){
+  const ok=()=>{if(t!==run)throw ABORT};
+  return{
+    say:(n,txt)=>{ok();say(n,txt)},
+    go:async(a,b,label,tone,opt)=>{ok();await travel(a,b,label,tone,opt);ok()},
+    wait:async ms=>{ok();await gate(ms);ok()},
+    pause:async ms=>{ok();await sleep(ms);ok()}
+  };
+}
+async function runFlow(fn){
+  if(S.busy)return;
+  S.busy=true;const t=run;
+  render();
+  if(vert){const r=$('#stagebox').getBoundingClientRect();if(r.bottom<80||r.top>innerHeight-80)$('#stagebox').scrollIntoView({behavior:RM?'auto':'smooth',block:'start'})}
+  try{await fn(mkF(t))}catch(e){if(e!==ABORT)console.error(e)}
+  finally{if(t===run){S.busy=false;$('#nextHop').hidden=true;render()}}
+}
+
+/* ---------- narration ---------- */
+function who(n){const C=c();return{src:C.source,api:'API',srv:'Сервер',db:'База данных',a:C.a.name,b:C.b.name,sys:'Итог'}[n]}
+function wcol(n){return{src:'--k-src',api:'--k-api',srv:'--k-srv',db:'--k-db',a:'--k-scr',b:'--k-scr',sys:'--k-sys'}[n]}
+function say(n,txt){
+  const w=$('#who');w.textContent=who(n);w.style.setProperty('--wc',`var(${wcol(n)})`);
+  const s=$('#say');s.textContent=txt;s.classList.remove('swap');void s.offsetWidth;s.classList.add('swap');
+}
+function info(n){
+  const C=c();
+  return{
+    src:`${C.source} — система, где факт появляется впервые (${C.kind.toLowerCase()}). Она ничего не знает о ваших отделах: она только сообщает о событии.`,
+    api:'API — договорённость о том, как программы обмениваются данными: куда отправить запрос, в каком виде и какой придёт ответ. API передаёт данные, но не хранит их.',
+    srv:'Сервер выполняет правила бизнеса: проверяет, кто отправил запрос, есть ли у него право и допустимо ли действие прямо сейчас.',
+    db:'База данных — общая память. Она хранит текущее состояние каждой записи и историю изменений. Поэтому все экраны показывают один и тот же факт.',
+    a:`Дашборд ${C.a.name} — рабочий экран отдела. Он показывает то, что нужно именно этому отделу, и даёт выполнить его часть работы.`,
+    b:`Дашборд ${C.b.name} — рабочий экран отдела. Те же данные, но под другой вопрос: ${C.b.q.toLowerCase()}`
+  }[n];
+}
+function explain(n){if(S.busy)return;say(n,info(n));hit(n)}
+function verdict(t){S.verdict=t;renderStage()}
+function log(m){m.id=++msgSeq;m.at=now();S.msgs.unshift(m);S.sel=m.id}
+function markDone(k){S.done[k]=true}
+
+/* ---------- flows ---------- */
+async function broadcast(F,txt){
+  F.say('api',txt);
+  await F.go('srv','api','Обновление','db');
+  await Promise.all([F.go('api','a','Обновление','db'),F.go('api','b','Обновление','db')]);
+  const t=now();
+  S.views.a={...S.rec,at:t};S.views.b={...S.rec,at:t};
+  S.stale=false;S.fl.a=S.fl.b=true;render();
+  await F.wait();
+}
+async function importFlow(F){
+  const C=c();
+  const body={event:C.evCode,object_id:C.id,object:C.obj,detail:C.detail};
+  const req=`POST /api/events\nОтправитель: ${C.source}\n\n${J(body)}`;
+  if(S.offline){
+    F.say('src',`${C.source} пытается отправить событие, но связи с источником нет.`);
+    await F.go('src','api','Событие','src',{fail:true});
+    S.stale=!!(S.views.a||S.views.b);
+    log({route:`${C.source} → API`,title:'Источник недоступен',plain:`${C.source} не ответил. Новых данных нет, ничего не изменилось.`,req,res:'503 Service Unavailable\n\n'+J({error:'source_unavailable'}),code:503});
+    S.exp.off='Новых данных нет, но экраны не опустели: они показывают последнее сохранённое состояние и время, когда оно было получено. Сохранённые данные не пропадают из-за сбоя источника.';
+    render();
+    F.say('sys',S.stale?'Новые данные не пришли. Экраны продолжают показывать последнее сохранённое состояние и предупреждают, что оно может быть неактуальным.':'Новые данные не пришли. Пока источник недоступен, запись не появится.');
+    return;
+  }
+  F.say('src',`В ${C.source} появился факт: «${C.event}». Источник отправляет его через API.`);
+  await F.go('src','api','Событие','src');S.apiCount++;render();await F.wait();
+  F.say('api','API принимает сообщение в оговорённом формате (что произошло и с каким объектом) и передаёт его серверу.');
+  await F.go('api','srv','Событие','api');await F.wait();
+  if(S.noDb){
+    verdict('Переслано без сохранения');
+    F.say('srv','Сервер принял событие. Общей базы нет, поэтому сохранить его некуда: сервер просто пересылает копию на оба экрана.');
+    await F.wait();
+    await F.go('srv','api','Копия','srv');
+    await Promise.all([F.go('api','a','Копия','api'),F.go('api','b','Копия','api')]);
+    const t=now();
+    S.views.a={status:'pending',assigned:false,version:1,at:t};S.views.b={...S.views.a};
+    S.fl.a=S.fl.b=true;
+    log({route:`${C.source} → API → Сервер → экраны`,title:'Новое событие',plain:`${C.source} сообщил: «${C.event}». Сервер не сохранил запись, а переслал копии на оба экрана.`,req,res:'202 Accepted\n\n'+J({forwarded_to:[C.a.name,C.b.name],stored:false}),code:202});
+    markDone('import');render();
+    F.say('sys','Каждый экран сохранил свою копию. Пока копии совпадают. Продолжайте сценарий и следите за обоими экранами.');
+    return;
+  }
+  if(S.rec){
+    F.say('srv',`Сервер проверяет, нет ли уже записи ${C.id}, и спрашивает базу данных.`);
+    await F.go('srv','db','Поиск '+C.id,'srv');await F.wait();
+    F.say('db',`Запись ${C.id} уже есть. Значит, это повтор того же события.`);
+    await F.go('db','srv','Найдено','db');await F.wait();
+    verdict('Повтор · без изменений');
+    F.say('srv','Сервер не создаёт вторую запись и не меняет статус. Источнику уходит ответ «уже учтено».');
+    await F.go('srv','api','Уже учтено','srv');await F.go('api','src','Уже учтено','api');
+    log({route:`${C.source} → API → Сервер → База`,title:'Повтор события',plain:`${C.source} прислал то же событие ещё раз. Сервер нашёл запись ${C.id} по ID и ничего не продублировал.`,req,res:'200 OK\n\n'+J({id:C.id,duplicate:true,version:S.rec.version}),code:200});
+    S.exp.dup=`Сервер нашёл запись ${C.id} и не создал дубль. Поэтому у каждого объекта должен быть постоянный ID: по нему системы понимают, что речь об одном и том же.`;
+    render();
+    F.say('sys',`Повтор распознан по ID. В базе по-прежнему одна запись ${C.id}.`);
+    return;
+  }
+  verdict('✓ Принято');
+  F.say('db',`Формат верный, запись новая. База сохраняет её: ${C.id}, статус «${C.st.pending}», версия 1.`);
+  await F.go('srv','db','Сохранить','srv');
+  S.rec={status:'pending',assigned:false,version:1,by:C.source,at:now()};
+  S.hist.unshift({v:1,by:C.source,text:`Запись создана · «${C.st.pending}»`,at:S.rec.at});
+  S.fl.db=true;render();await F.wait();
+  await broadcast(F,'Сервер сообщает обоим экранам, что появилась новая запись.');
+  log({route:`${C.source} → API → Сервер → База → экраны`,title:'Новое событие',plain:`${C.source} сообщил: «${C.event}». Сервер создал запись ${C.id} и разослал её обоим экранам.`,req,res:'201 Created\n\n'+J({id:C.id,status:CODE.pending,version:1}),code:201});
+  markDone('import');render();
+  F.say('sys',`Оба отдела видят одну и ту же запись ${C.id}: каждый на своём экране и со своим вопросом.`);
+}
+async function actionFlow(F,side,act){
+  const C=c(),T=C[side],O=C[side==='a'?'b':'a'],view=S.views[side];
+  const want={start:'progress',complete:'ready',forbidden:'ready'}[act];
+  const human=act==='assign'?`${C.act.assign.toLowerCase()} (${C.obj})`:`перевести ${C.obj} в статус «${C.st[want]}»`;
+  const isPost=act==='assign';
+  const body=isPost?{target:C.slot}:{status:CODE[want]};
+  const req=`${isPost?'POST':'PATCH'} ${C.path}${isPost?'/assign':''}\nОтправитель: ${T.name}\n\n${J(body)}`;
+  S.notes[side]=null;render();
+  F.say(side,`${T.name} нажимает кнопку. Экран отправляет запрос: ${human}.`);
+  await F.go(side,'api','Запрос','scr');S.apiCount++;render();await F.wait();
+  F.say('api','API принимает запрос и передаёт его серверу вместе с информацией о том, кто его отправил.');
+  await F.go('api','srv','Запрос','api');
+  verdict('Проверяет…');
+  F.say('srv','Сервер проверяет две вещи: есть ли у отправителя право на это действие и разрешают ли его правила.');
+  await F.wait();
+  const base=S.noDb?view:S.rec;
+  let code=200,reason=null;
+  if(act==='forbidden'){code=403;reason=`Нет права: ${C.forbid}.`}
+  else if(!base){code=404;reason='Записи ещё нет. Сначала должно прийти событие из источника.'}
+  else if(act==='start'&&base.status!=='pending'){code=409;reason=`Сейчас статус «${C.st[base.status]}», а начать можно только из статуса «${C.st.pending}».`}
+  else if(act==='complete'&&base.status!=='progress'){code=409;reason=`Сейчас статус «${C.st[base.status]}», а завершить можно только то, что в работе.`}
+  else if(act==='assign'&&base.assigned){code=409;reason='Это уже сделано ранее.'}
+  else if(act==='assign'&&base.status!=='ready'){code=409;reason=`Правило: ${C.rule}. Сейчас статус «${C.st[base.status]}».`}
+  if(code!==200){
+    verdict(code===403?'✕ Нет права':'✕ Отклонено');bad('srv');
+    F.say('srv',`Отклонено. ${reason}`);
+    await F.go('srv','api','Отказ '+code,'bad');await F.go('api',side,'Отказ '+code,'bad');
+    const resTxt={403:'403 Forbidden',404:'404 Not Found',409:'409 Conflict'}[code];
+    S.notes[side]={tone:'bad',text:'Сервер отклонил запрос. '+reason};
+    log({route:`${T.name} → API → Сервер`,title:(act==='forbidden'?'Попытка изменить чужой статус':act==='assign'?C.act.assign:act==='start'?C.act.start:C.act.done)+' · отказ',plain:`${T.name} попросил ${human}. Сервер отказал. ${reason}`,req,res:resTxt+'\n\n'+J({error:reason.replace(/\.$/,'')}),code});
+    if(act==='assign'&&base&&base.status!=='ready')markDone('early');
+    if(act==='forbidden')S.exp.forbid='Сервер отклонил запрос с кодом 403 («нет права»). Даже если спрятать кнопку на экране, права нужно проверять на сервере: запрос можно отправить и в обход экрана.';
+    let tail='';
+    if(S.noDb&&act==='assign'&&S.views.a&&S.views.a.status==='ready'&&base&&base.status!=='ready'){
+      tail=` Но ${C.a.name} уже всё завершил. ${T.name} об этом не знает: его копия данных устарела.`;
+      S.exp.nodb=`Решение принято по устаревшей копии: у ${C.a.name} уже «${C.st.ready}», а ${C.b.name} всё ещё видит «${C.st[base.status]}». Общая база нужна, чтобы все опирались на один и тот же факт.`;
+    }
+    render();
+    F.say('sys',(act==='forbidden'?`${C.forbid}. Спрятать кнопку на экране недостаточно: решение принимает сервер.`:`Сервер отклонил запрос. ${reason}`)+tail);
+    return;
+  }
+  verdict('✓ Разрешено');
+  const t=now();
+  if(S.noDb){
+    F.say('srv','Разрешено. Но общей базы нет: изменение возвращается только на тот экран, который его отправил.');
+    await F.go('srv','api','Ответ 200','srv');await F.go('api',side,'Ответ 200','api');
+    S.views[side]=act==='assign'?{...view,assigned:true,version:view.version+1,at:t}:{...view,status:want,version:view.version+1,at:t};
+    S.fl[side]=true;S.notes[side]={tone:'ok',text:'Сохранено только на этом экране.'};
+    log({route:`${T.name} → API → Сервер → ${T.name}`,title:act==='assign'?C.act.assign:act==='start'?C.act.start:C.act.done,plain:`${T.name} попросил ${human}. Сервер разрешил, но сохранить изменение для всех было негде.`,req,res:'200 OK\n\n'+J({stored:false,only_for:T.name}),code:200});
+    markDone(act==='complete'?'complete':act);
+    const ov=S.views[side==='a'?'b':'a'];
+    if(ov&&(ov.status!==S.views[side].status||ov.assigned!==S.views[side].assigned)&&!S.exp.nodb)
+      S.exp.nodb=`Экраны разошлись: у ${C.a.name} — «${C.st[S.views.a.status]}», у ${C.b.name} — «${C.st[S.views.b.status]}». Каждый хранит свою копию, и никто не сообщает другим об изменениях.`;
+    render();
+    F.say('sys',`У ${T.name} теперь «${C.st[S.views[side].status]}», а ${O.name} по-прежнему видит «${ov?C.st[ov.status]:'—'}». Без общей памяти экраны начинают показывать разное.`);
+    return;
+  }
+  const prev=S.rec;
+  const next=act==='assign'?{...prev,assigned:true}:{...prev,status:want};
+  next.version=prev.version+1;next.by=T.name;next.at=t;
+  const change=act==='assign'?`${C.slot}: ${C.slotOn}`:`«${C.st[prev.status]}» → «${C.st[want]}»`;
+  F.say('db',`Разрешено. База обновляет запись: ${change}. Версия ${next.version}. Прежнее значение остаётся в истории.`);
+  await F.go('srv','db','Сохранить','srv');
+  S.rec=next;S.hist.unshift({v:next.version,by:T.name,text:change,at:t});S.fl.db=true;render();await F.wait();
+  await broadcast(F,'Сервер рассылает обновление обоим экранам.');
+  S.notes[side]={tone:'ok',text:`Сохранено в базе · версия ${next.version}`};
+  log({route:`${T.name} → API → Сервер → База → экраны`,title:act==='assign'?C.act.assign:act==='start'?C.act.start:C.act.done,plain:`${T.name} попросил ${human}. Сервер проверил право и правило, база сохранила версию ${next.version}, оба экрана получили обновление.`,req,res:'200 OK\n\n'+J({id:C.id,status:CODE[next.status],assigned:next.assigned,version:next.version}),code:200});
+  markDone(act==='complete'?'complete':act);render();
+  F.say('sys',act==='start'?`${O.name} сразу видит статус «${C.st.progress}». Звонить и уточнять не нужно.`:act==='complete'?`${O.name} видит «${C.st.ready}» и может принимать решение.`:C.success);
+}
+
+/* ---------- steps ---------- */
+function steps(){
+  const C=c();
+  return[
+    {k:'import',label:'Событие из '+C.source,btn:'#btnImport',go:()=>runFlow(F=>importFlow(F))},
+    {k:'start',label:C.act.start,btn:'#btnStart',go:()=>runFlow(F=>actionFlow(F,'a','start'))},
+    {k:'early',label:C.act.assign+' раньше времени',btn:'#btnAssign',go:()=>runFlow(F=>actionFlow(F,'b','assign'))},
+    {k:'complete',label:C.act.done,btn:'#btnDone',go:()=>runFlow(F=>actionFlow(F,'a','complete'))},
+    {k:'assign',label:C.act.assign,btn:'#btnAssign',go:()=>runFlow(F=>actionFlow(F,'b','assign'))}
+  ];
+}
+const skipped=k=>k==='early'&&!S.done.early&&!!S.done.complete;
+const nextStep=()=>steps().find(s=>!S.done[s.k]&&!skipped(s.k));
+
+/* ---------- render ---------- */
+function renderStage(){
+  const C=c(),set=(n,l,nn,ns,st)=>{const el=$('#node-'+n);el.querySelector('.nl').textContent=l;el.querySelector('.nn').textContent=nn;el.querySelector('.ns').textContent=ns;el.querySelector('.nst').innerHTML=st;el.setAttribute('aria-label',`${l}: ${nn}. Нажмите, чтобы узнать подробнее.`)};
+  const spill=(side)=>{const v=S.views[side];if(!v)return'<span class="spill k-none">Нет данных</span>';
+    let h=`<span class="spill k-${v.status}">${esc(C.st[v.status])}</span>`;
+    if(side==='b'&&v.assigned)h+=` <span class="spill k-ready">✓ ${esc(C.slotOn)}</span>`;
+    if(S.noDb)h+='<span class="copytag">своя копия</span>';
+    return h};
+  set('src','Источник',C.source,C.kind,S.offline?'● Нет связи':'● На связи');
+  set('api','API','Единый вход','Принимает и передаёт запросы',`Запросов: ${S.apiCount}`);
+  set('srv','Сервер','Правила и проверки','Решает, что можно делать',esc(S.verdict||'Ждёт запросов'));
+  set('db','База данных','Общая память','Хранит состояние и историю',S.noDb?'Отключена':S.rec?`${C.id} · версия ${S.rec.version}`:'Пока пусто');
+  set('a','Дашборд',C.a.name,C.a.role,spill('a'));
+  set('b','Дашборд',C.b.name,C.b.role,spill('b'));
+  $('#node-src').classList.toggle('down',S.offline);
+  $('#node-db').classList.toggle('dim',S.noDb);
+  const ws=$('#w-src-api');if(ws)ws.classList.toggle('off',S.offline);
+  const wdb=$('#w-srv-db');if(wdb)wdb.classList.toggle('off',S.noDb);
+}
+function renderSteps(){
+  const ns=nextStep();
+  $('#steps').innerHTML=steps().map((s,i)=>{
+    const cls=S.done[s.k]?'done':skipped(s.k)?'skip':(ns&&ns.k===s.k?'cur':'');
+    return `<li class="${cls}"><button type="button" data-k="${s.k}" ${S.busy?'disabled':''}><span class="num">${S.done[s.k]?'✓':i+1}</span>${esc(s.label)}</button></li>`;
+  }).join('');
+  const nb=$('#nextStep');
+  nb.hidden=S.busy&&stepMode;
+  nb.disabled=S.busy;
+  nb.textContent=ns?`▶ ${ns.label}`:'Сценарий пройден · дальше «Что если…»';
+}
+function recHTML(side){
+  const C=c(),v=S.views[side];
+  if(!v)return`<div class="empty"><b>Данных пока нет</b><span>Запись появится, когда из ${esc(C.source)} придёт событие.</span></div>`;
+  const slot=side==='b'?`<div class="kv"><span>${esc(C.slot)}</span><b class="${v.assigned?'ok':''}">${esc(v.assigned?C.slotOn:C.slotOff)}</b></div>`:'';
+  const warn=S.stale?'<div class="warnline">Источник недоступен. Показано последнее сохранённое состояние.</div>':'';
+  return`<div class="rec"><div class="rec-top"><div><b>${esc(C.obj)}</b><small>${esc(C.id)} · ${esc(C.detail)}</small></div><span class="pill p-${v.status}">${esc(C.st[v.status])}</span></div>${slot}<div class="meta">${S.noDb?'своя копия · ':''}версия ${v.version} · получено в ${v.at}</div>${warn}</div>`;
+}
+function setHTML(el,h,flash){
+  if(el._h===h){if(flash){const r=el.querySelector('.rec,tr.row');if(r){r.classList.remove('flash');void r.offsetWidth;r.classList.add('flash')}}return}
+  el._h=h;el.innerHTML=h;
+  if(flash){const r=el.querySelector('.rec,tr.row');if(r)r.classList.add('flash')}
+}
+function renderDash(){
+  const C=c(),A=C.a,B=C.b;
+  $('#srcName').textContent=C.source;$('#srcKind').textContent=C.kind;
+  $('#srcEvent').textContent=C.event;$('#srcDetail').textContent=`${C.obj} · ${C.id} · ${C.detail}`;
+  const ss=$('#srcState');ss.textContent=S.offline?'● Нет связи с источником':'● Источник на связи';ss.classList.toggle('down',S.offline);
+  $('#aName').textContent=A.name;$('#aRole').textContent=A.role;$('#aQ').textContent=A.q;$('#aMay').textContent=A.may;$('#aAv').textContent=A.av;
+  $('#bName').textContent=B.name;$('#bRole').textContent=B.role;$('#bQ').textContent=B.q;$('#bMay').textContent=B.may;$('#bAv').textContent=B.av;
+  setHTML($('#aBody'),recHTML('a'),S.fl.a);setHTML($('#bBody'),recHTML('b'),S.fl.b);S.fl.a=S.fl.b=false;
+  for(const sd of ['a','b']){const n=S.notes[sd];$('#'+sd+'Note').innerHTML=n?`<div class="note ${n.tone}">${n.tone==='ok'?'✓':'✕'} ${esc(n.text)}</div>`:''}
+  const va=S.views.a,vb=S.views.b;
+  $('#btnStart').textContent=C.act.start;$('#btnDone').textContent=C.act.done;$('#btnAssign').textContent=C.act.assign;
+  $('#btnImport').disabled=S.busy;
+  $('#btnStart').disabled=S.busy||!va||va.status!=='pending';
+  $('#btnDone').disabled=S.busy||!va||va.status!=='progress';
+  $('#btnAssign').disabled=S.busy||!vb||vb.assigned;
+  const ns=nextStep();
+  for(const id of ['#btnImport','#btnStart','#btnDone','#btnAssign'])$(id).classList.toggle('cue',!S.busy&&!!ns&&ns.btn===id&&!$(id).disabled);
+  const dv=$('#diverge');
+  if(S.noDb&&va&&vb&&(va.status!==vb.status||va.assigned!==vb.assigned)){
+    dv.hidden=false;dv.textContent=`Экраны показывают разное: у ${A.name} — «${C.st[va.status]}», у ${B.name} — «${C.st[vb.status]}». Без общей базы никто не сообщает другим об изменениях.`;
+  }else dv.hidden=true;
+}
+function renderDb(){
+  const C=c(),r=S.rec;
+  let h=`<table><thead><tr><th>ID</th><th>Объект</th><th>Статус</th><th>${esc(C.slot)}</th><th>Версия</th><th>Изменил</th><th>Время</th></tr></thead><tbody>`;
+  h+=r?`<tr class="row"><td class="mono">${esc(C.id)}</td><td>${esc(C.obj)}</td><td><span class="pill p-${r.status}">${esc(C.st[r.status])}</span></td><td>${esc(r.assigned?C.slotOn:C.slotOff)}</td><td class="mono">${r.version}</td><td>${esc(r.by)}</td><td class="mono">${r.at}</td></tr>`
+     :`<tr><td colspan="7" style="color:var(--muted);white-space:normal">Записей пока нет. Первая появится, когда придёт событие из ${esc(C.source)}.</td></tr>`;
+  h+='</tbody></table>';
+  if(S.noDb)h+='<div class="dboff">Общая база отключена в эксперименте.<br>Каждый экран хранит свою копию.</div>';
+  setHTML($('#dbTable'),h,S.fl.db);S.fl.db=false;
+  $('#hist').innerHTML=S.hist.length?S.hist.map(x=>`<li><span class="vtag">v${x.v}</span><span class="txt"><span class="who2">${esc(x.by)}</span> · ${esc(x.text)}</span><time>${x.at}</time></li>`).join('')
+    :'<li class="sub">Здесь появится каждое изменение: кто, что и когда.</li>';
+}
+function hl(s){
+  return esc(s)
+    .replace(/^(GET|POST|PATCH|PUT|DELETE)(\s)/gm,'<span class="hm">$1</span>$2')
+    .replace(/^(\d{3}) ([A-Za-z ]+)$/gm,(m,cd,t)=>`<span class="hc ${cd<300?'ok':'bad'}">${cd} ${t}</span>`)
+    .replace(/^(Отправитель:.*)$/gm,'<span class="hh">$1</span>')
+    .replace(/(&quot;[^&]*?&quot;)(\s*:)/g,'<span class="hk">$1</span>$2')
+    .replace(/:\s(&quot;.*?&quot;)/g,': <span class="hs">$1</span>')
+    .replace(/:\s(-?\d+|true|false)/g,': <span class="hn">$1</span>');
+}
+function renderMsgs(){
+  const ul=$('#msgs');
+  if(!S.msgs.length){ul.innerHTML='<li class="sub" style="padding:6px 2px">Сообщений пока нет. Отправьте событие из источника.</li>';$('#detail').innerHTML='';return}
+  ul.innerHTML=S.msgs.map(m=>`<li><button type="button" class="msg" data-id="${m.id}" aria-pressed="${m.id===S.sel}"><time>${m.at}</time><span class="mt"><b>${esc(m.title)}</b> <span>· ${esc(m.route)}</span></span><span class="code ${m.code<300?'ok':'bad'}">${m.code}</span></button></li>`).join('');
+  const m=S.msgs.find(x=>x.id===S.sel)||S.msgs[0];
+  const tabs=`<div class="tabs" role="tablist"><button type="button" class="tab" role="tab" data-tab="plain" aria-selected="${S.tab==='plain'}">Простыми словами</button><button type="button" class="tab" role="tab" data-tab="code" aria-selected="${S.tab==='code'}">Как видит программа</button></div>`;
+  const body=S.tab==='plain'
+    ?`<div class="plain"><span class="route">${esc(m.route)}</span>${esc(m.plain)}</div>`
+    :`<div class="codegrid"><div class="codebox"><b>Запрос</b><pre>${hl(m.req)}</pre></div><div class="codebox"><b>Ответ</b><pre>${hl(m.res)}</pre></div></div>`;
+  $('#detail').innerHTML=tabs+body;
+}
+function renderExp(){
+  const C=c();
+  $('#forbidTitle').textContent=`${C.b.name} меняет чужой статус`;
+  $('#forbidText').textContent=`${C.b.name} пытается сам отметить «${C.st.ready}», хотя это работа ${C.a.name}. Пропустит ли система?`;
+  $('#expDup').disabled=S.busy||!S.rec||S.noDb||S.offline;
+  $('#expForbid').disabled=S.busy||!S.views.b;
+  $('#expOff').checked=S.offline;$('#expOff').disabled=S.busy;
+  $('#expNoDb').checked=S.noDb;$('#expNoDb').disabled=S.busy;
+  const put=(id,t)=>{const el=$(id);el.hidden=!t;el.textContent=t||''};
+  put('#resDup',S.exp.dup);put('#resOff',S.exp.off);put('#resForbid',S.exp.forbid);put('#resNoDb',S.exp.nodb);
+}
+function renderGloss(){
+  const C=c();
+  const G=[
+    ['src','Источник','Система, где факт появляется впервые.',`Примеры: ${C.source}, телеметрия, система бронирований, бухгалтерия, Google Sheets.`],
+    ['api','API','Правила обмена между программами: куда отправить запрос, в каком виде и что придёт в ответ. Передаёт данные, но не хранит их.','Примеры: API Google Sheets, API QuickBooks, API вашей CRM.'],
+    ['srv','Сервер','Программа, которая выполняет правила бизнеса и проверяет права.','Примеры: логика CRM, автоматизация в n8n или Make, собственный backend.'],
+    ['db','База данных','Общая память: текущее состояние каждой записи и история изменений.','Примеры: база внутри CRM, Airtable, PostgreSQL.'],
+    ['scr','Дашборд','Рабочий экран отдела: показывает нужное и даёт выполнить свою часть работы.','Примеры: экран в CRM, отчёт в Looker Studio, внутреннее приложение.']
+  ];
+  $('#gloss').innerHTML=G.map(([k,n,t,e])=>`<article class="card"><h3><span class="dot" style="background:var(--${k})"></span>${esc(n)}</h3><p>${esc(t)}</p><p class="ex">${esc(e)}</p></article>`).join('');
+}
+function render(){renderStage();renderSteps();renderDash();renderDb();renderMsgs();renderExp()}
+function renderScen(){
+  $('#scen').innerHTML=Object.entries(SC).map(([k,v])=>`<button type="button" data-k="${k}" aria-pressed="${k===key}">${esc(v.tab)}</button>`).join('');
+}
+function intro(){
+  const ns=steps()[0];
+  say('sys',`Нажмите «${ns.label}», чтобы данные пришли из ${c().source}. Светящиеся пакеты на схеме покажут, кто кому передаёт данные. Любой блок схемы можно нажать.`);
+}
+
+/* ---------- control ---------- */
+function abort(){
+  run++;
+  if(waiting){const r=waiting;waiting=null;r()}
+  $('#nextHop').hidden=true;
+  document.querySelectorAll('.packet').forEach(p=>p.remove());
+  document.querySelectorAll('.wire.live').forEach(w=>w.classList.remove('live'));
+  S.busy=false;
+}
+function reset(keep={}){abort();S=Object.assign(fresh(),keep);render();intro()}
+
+$('#scen').addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(!b||b.dataset.k===key)return;key=b.dataset.k;try{localStorage.setItem('dfl-scen',key)}catch{}renderScen();renderGloss();reset()});
+$('#steps').addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(!b||S.busy)return;const s=steps().find(x=>x.k===b.dataset.k);if(s)s.go()});
+$('#nextStep').addEventListener('click',()=>{if(S.busy)return;const s=nextStep();if(s)s.go();else $('#exp').scrollIntoView({behavior:RM?'auto':'smooth'})});
+$('#nextHop').addEventListener('click',advance);
+$('#reset').addEventListener('click',()=>reset());
+$('#tempo').addEventListener('change',e=>{tempo=e.target.value});
+$('#stepMode').addEventListener('change',e=>{stepMode=e.target.checked;if(!stepMode)advance();renderSteps()});
+$('#fs').addEventListener('click',()=>{try{if(document.fullscreenElement)document.exitFullscreen();else{const p=document.documentElement.requestFullscreen?.();if(p)p.catch(()=>{})}}catch{}});
+$('#btnImport').addEventListener('click',()=>runFlow(F=>importFlow(F)));
+$('#btnStart').addEventListener('click',()=>runFlow(F=>actionFlow(F,'a','start')));
+$('#btnDone').addEventListener('click',()=>runFlow(F=>actionFlow(F,'a','complete')));
+$('#btnAssign').addEventListener('click',()=>runFlow(F=>actionFlow(F,'b','assign')));
+$('#expDup').addEventListener('click',()=>runFlow(F=>importFlow(F)));
+$('#expForbid').addEventListener('click',()=>runFlow(F=>actionFlow(F,'b','forbidden')));
+$('#expOff').addEventListener('change',e=>{
+  S.offline=e.target.checked;
+  if(S.offline){S.exp.off=S.exp.off||'Источник отключён. Нажмите «Отправить событие» и посмотрите, что покажут экраны.';say('src',`Связь с ${c().source} потеряна. Попробуйте отправить событие.`)}
+  else{S.stale=false;say('src',`${c().source} снова на связи.`)}
+  render();
+});
+$('#expNoDb').addEventListener('change',e=>{
+  const on=e.target.checked;
+  reset({noDb:on,offline:S.offline,exp:on?{off:S.exp.off,dup:S.exp.dup,forbid:S.exp.forbid}:{...S.exp,nodb:S.exp.nodb}});
+  say('sys',on?'Общая база отключена. Сценарий начат заново: пройдите шаги ещё раз и следите за обоими экранами.':'Общая база снова работает. Сценарий начат заново.');
+});
+$('#msgs').addEventListener('click',e=>{const b=e.target.closest('.msg');if(!b)return;S.sel=+b.dataset.id;renderMsgs()});
+$('#detail').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;S.tab=b.dataset.tab;renderMsgs()});
+$('#quiz').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  $('#quiz').querySelectorAll('button').forEach(x=>x.classList.remove('right','wrong'));
+  const ok=b.dataset.a==='1';b.classList.add(ok?'right':'wrong');
+  $('#quizres').textContent=ok?'Верно. Экран можно обойти, а сервер проверяет каждый запрос: кто его отправил и есть ли у него право.':'Не совсем. Кнопку можно обойти, а название отдела в запросе можно подделать. Проверять нужно на сервере.';
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!==' '&&e.key!=='ArrowRight')return;
+  if(e.target.closest('button,input,select,textarea,a,summary'))return;
+  e.preventDefault();
+  if(waiting)advance();
+  else if(!S.busy){const s=nextStep();if(s)s.go()}
+});
+
+try{const k=localStorage.getItem('dfl-scen');if(k&&SC[k])key=k}catch{}
+renderScen();buildStage();renderGloss();render();intro();
+let rt;new ResizeObserver(()=>{clearTimeout(rt);rt=setTimeout(()=>{const was=vert;const nv=$('#stagebox').clientWidth<700;if(nv!==was)layout()},80)}).observe($('#stagebox'));
+</script>
+</body>
+</html>
